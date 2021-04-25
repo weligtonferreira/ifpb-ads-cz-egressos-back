@@ -18,7 +18,7 @@ module.exports = {
     async show(req, res) {
         const { registration } = req.params;
 
-        redisClient.get(registration, async (err, reply) => {
+        await redisClient.get(registration, async (err, reply) => {
             if (reply) {
                 const data = JSON.parse(reply.toString());
 
@@ -31,7 +31,7 @@ module.exports = {
 
                 await Student.findOne({ registration }).then(async (response) => {
                     if (response) {
-                        redisClient.setex(registration, (60 * 60), JSON.stringify(response));
+                        await redisClient.setex(registration, (60 * 60), JSON.stringify(response));
 
                         return res.status(200).json(response);
                     }
@@ -99,6 +99,49 @@ module.exports = {
 
         await Student.insertMany(students).then(async (response) => {
             return res.json(response.ops);
+        });
+    },
+
+    async update(req, res) {
+        const { body } = req;
+        const { registration } = req.params;
+
+        await mongoClient.connect();
+
+        const DataBase = mongoClient.db(MONGO_DATABASE);
+        const Student = DataBase.collection('Student');
+
+        await Student.updateOne({ registration }, { $set: body }).then(async (response) => {
+            await redisClient.get(registration, async (err, reply) => {
+                if (reply) {
+                    await redisClient.del(registration);
+                }
+            });
+            if (response.matchedCount) {
+                return res.status(200).send();
+            }
+            return res.status(404).send();
+        });
+    },
+
+    async destroy(req, res) {
+        const { registration } = req.params;
+
+        await mongoClient.connect();
+
+        const DataBase = mongoClient.db(MONGO_DATABASE);
+        const Student = DataBase.collection('Student');
+
+        await Student.deleteOne({ registration }).then(async (response) => {
+            await redisClient.get(registration, async (err, reply) => {
+                if (reply) {
+                    await redisClient.del(registration);
+                }
+            });
+            if (response.deletedCount) {
+                return res.status(200).send();
+            }
+            return res.status(404).send();
         });
     },
 }
