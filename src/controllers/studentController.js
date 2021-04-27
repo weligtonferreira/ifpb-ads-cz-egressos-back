@@ -1,3 +1,4 @@
+const { randCity, randPoint, revertPoints } = require('../functions');
 const { mongoClient, redisClient } = require('../config/database');
 const { MONGO_DATABASE } = process.env;
 
@@ -16,9 +17,9 @@ module.exports = {
     },
 
     async show(req, res) {
-        const { registration } = req.params;
+        const { matricula } = req.params;
 
-        await redisClient.get(registration, async (err, reply) => {
+        await redisClient.get(matricula, async (err, reply) => {
             if (reply) {
                 const data = JSON.parse(reply.toString());
 
@@ -29,9 +30,9 @@ module.exports = {
                 const DataBase = mongoClient.db(MONGO_DATABASE);
                 const Student = DataBase.collection('Student');
 
-                await Student.findOne({ registration }).then(async (response) => {
+                await Student.findOne({ matricula }).then(async (response) => {
                     if (response) {
-                        await redisClient.setex(registration, (60 * 60), JSON.stringify(response));
+                        await redisClient.setex(matricula, (60 * 60), JSON.stringify(response));
 
                         return res.status(200).json(response);
                     }
@@ -44,38 +45,11 @@ module.exports = {
     async create(req, res) {
         const { body } = req;
 
-        const student = {};
+        const randCityData = randCity();
 
-        const { nome, matricula, situacao, cota } = body;
-
-        const cidades = [
-            'São José de Piranhas',
-            'Cajazeiras',
-            'Sousa',
-            'São Paulo',
-            'Rio de Janeiro',
-            'João Pessoa',
-            'Cabedelo',
-            'Curitiba',
-            'Cascavel',
-            'Barro',
-            'Manaus',
-            'Teresina',
-            'Campina Grande',
-            'Belém',
-            'Brasília',
-            'Pombal'
-        ];
-
-        const cidade = cidades[Math.floor(Math.random() * (cidades.length - 0)) + 0];
-
-        student.nome = nome;
-        student.registration = matricula;
-        student.situacao = situacao;
-        student.curso = 'Tecnologia em Análise e Desenvolvimento de Sistemas';
-        student.campus = 'Cajazeiras';
-        student.cota = cota;
-        student.cidadeNatal = cidade;
+        body.cidade = randCityData[0];
+        body.local = randPoint(randCityData[1]);
+        body.svgPoint = revertPoints(body.local);
 
         await mongoClient.connect();
 
@@ -92,6 +66,14 @@ module.exports = {
 
         const { students } = body;
 
+        students.map(student => {
+            let randCityData = randCity();
+
+            student.cidade = randCityData[0];
+            student.local = randPoint(randCityData[1]);
+            student.svgPoint = revertPoints(student.local);
+        });
+
         await mongoClient.connect();
 
         const DataBase = mongoClient.db(MONGO_DATABASE);
@@ -104,17 +86,17 @@ module.exports = {
 
     async update(req, res) {
         const { body } = req;
-        const { registration } = req.params;
+        const { matricula } = req.params;
 
         await mongoClient.connect();
 
         const DataBase = mongoClient.db(MONGO_DATABASE);
         const Student = DataBase.collection('Student');
 
-        await Student.updateOne({ registration }, { $set: body }).then(async (response) => {
-            await redisClient.get(registration, async (err, reply) => {
+        await Student.updateOne({ matricula }, { $set: body }).then(async (response) => {
+            await redisClient.get(matricula, async (err, reply) => {
                 if (reply) {
-                    await redisClient.del(registration);
+                    await redisClient.del(matricula);
                 }
             });
             if (response.matchedCount) {
@@ -125,17 +107,17 @@ module.exports = {
     },
 
     async destroy(req, res) {
-        const { registration } = req.params;
+        const { matricula } = req.params;
 
         await mongoClient.connect();
 
         const DataBase = mongoClient.db(MONGO_DATABASE);
         const Student = DataBase.collection('Student');
 
-        await Student.deleteOne({ registration }).then(async (response) => {
-            await redisClient.get(registration, async (err, reply) => {
+        await Student.deleteOne({ matricula }).then(async (response) => {
+            await redisClient.get(matricula, async (err, reply) => {
                 if (reply) {
-                    await redisClient.del(registration);
+                    await redisClient.del(matricula);
                 }
             });
             if (response.deletedCount) {
